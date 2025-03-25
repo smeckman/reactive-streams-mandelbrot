@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mandelbrot Fractal Viewer</title>
+    <style>
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border: 1px solid black;
+        }
+        body {
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <h1>Mandelbrot Fractal Viewer</h1>
+    <p>Fractal will be drawn dynamically as WebSocket data is received.</p>
+    <canvas id="mandelbrotCanvas" width="800" height="800"></canvas>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById("mandelbrotCanvas");
+        const ctx = canvas.getContext("2d");
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // WebSocket connection
+        const socket = new WebSocket("ws://localhost:8080/ws/mandelbrot");
+
+        socket.onopen = function () {
+            console.log("Connected to WebSocket server");
+        };
+
+        socket.onmessage = function (event) {
+            // Data format: x,y,iterations
+            const [x, y, iterations] = event.data.split(",").map(Number);
+
+            // Set pixel color based on iteration count
+            const pixelIndex = (y * width + x) * 4; // Canvas pixel index
+            const color = getColor(iterations);
+
+            // Set RGBA values
+            imageData.data[pixelIndex] = color[0];     // R
+            imageData.data[pixelIndex + 1] = color[1]; // G
+            imageData.data[pixelIndex + 2] = color[2]; // B
+            imageData.data[pixelIndex + 3] = 255;      // A (fully opaque)
+        };
+
+        socket.onclose = function () {
+            console.log("WebSocket connection closed.");
+        };
+
+        socket.onerror = function (error) {
+            console.error("WebSocket error:", error);
+        };
+
+        // Function to calculate color based on iterations
+        function getColor(iterations) {
+            if (iterations === 1000) {
+                // If max iterations, make the pixel black
+                return [0, 0, 0];
+            }
+
+            // Create colors based on iterations (e.g., gradient effect)
+            const r = (iterations * 9) % 256;   // Adjust color calculation as needed
+            const g = (iterations * 7) % 256;
+            const b = (iterations * 13) % 256;
+            return [r, g, b];
+        }
+
+        // Periodic canvas redraw to update pixels
+        function drawCanvas() {
+            ctx.putImageData(imageData, 0, 0); // Draw image data to canvas
+            requestAnimationFrame(drawCanvas);
+        }
+        drawCanvas();
+    </script>
+</body>
+</html>
