@@ -14,12 +14,27 @@
             text-align: center;
             font-family: Arial, sans-serif;
         }
+        #metrics {
+            margin-top: 20px;
+            font-size: 16px;
+        }
+        .metric {
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
     <h1>Mandelbrot Fractal Viewer</h1>
     <p>Fractal will be drawn dynamically as WebSocket data is received.</p>
     <canvas id="mandelbrotCanvas" width="800" height="800"></canvas>
+
+    <!-- Performance Metrics Display -->
+    <div id="metrics">
+        <div class="metric" id="fpsMetric">FPS: Calculating...</div>
+        <div class="metric" id="dataRateMetric">Data Throughput: Calculating...</div>
+        <div class="metric" id="processingTimeMetric">Average Processing Time: Calculating...</div>
+        <div class="metric" id="errorCountMetric">Errors: 0</div>
+    </div>
 
     <script>
         // Canvas setup
@@ -29,26 +44,70 @@
         const width = canvas.width;
         const height = canvas.height;
 
+        let dataCounter = 0;             // Counts WebSocket data events
+        let frameCounter = 0;            // Counts frames rendered
+        let processingTime = 0;          // Total time for processing data
+        let errorCount = 0;              // Count of WebSocket errors
+        let startTime = performance.now(); // Start time of metrics interval
+
+        const updateInterval = 1000; // Metrics update interval (1 second)
+
+        // Function to reset performance counters
+        function resetMetrics() {
+            dataCounter = 0;
+            frameCounter = 0;
+            processingTime = 0;
+            startTime = performance.now();
+        }
+
+        // Function to update metrics in the UI
+        function updateMetricsDisplay(fps, dataRate, avgProcessingTime, errorCount) {
+            document.getElementById("fpsMetric").innerText = `FPS: ${fps}`;
+            document.getElementById("dataRateMetric").innerText = `Data Throughput: ${dataRate} events/sec`;
+            document.getElementById("processingTimeMetric").innerText = `Average Processing Time: ${avgProcessingTime} ms/event`;
+            document.getElementById("errorCountMetric").innerText = `Errors: ${errorCount}`;
+        }
+
+        // Function to calculate and display performance metrics
+        function showMetrics() {
+            const elapsedTime = (performance.now() - startTime) / 1000; // Time in seconds
+            const fps = (frameCounter / elapsedTime).toFixed(2); // Frames per second
+            const dataRate = (dataCounter / elapsedTime).toFixed(2); // WebSocket events per second
+            const avgProcessingTime = dataCounter > 0
+                ? (processingTime / dataCounter).toFixed(2)
+                : 0; // Average processing time in ms
+
+            updateMetricsDisplay(fps, dataRate, avgProcessingTime, errorCount);
+
+            resetMetrics(); // Reset metrics counters for the next interval
+        }
+
         // WebSocket connection
         const socket = new WebSocket("ws://localhost:8080/ws/mandelbrot");
 
+        // WebSocket event handlers
         socket.onopen = function () {
             console.log("Connected to WebSocket server");
         };
 
         socket.onmessage = function (event) {
-            // Data format: x,y,iterations
+            const processStart = performance.now(); // Start processing timer
+
+            // Parse the event data: x, y, iterations
             const [x, y, iterations] = event.data.split(",").map(Number);
 
-            // Set pixel color based on iteration count
+            // Calculate pixel bitmap index and color
             const pixelIndex = (y * width + x) * 4; // Canvas pixel index
             const color = getColor(iterations);
 
-            // Set RGBA values
+            // Set RGBA values in the canvas
             imageData.data[pixelIndex] = color[0];     // R
             imageData.data[pixelIndex + 1] = color[1]; // G
             imageData.data[pixelIndex + 2] = color[2]; // B
             imageData.data[pixelIndex + 3] = 255;      // A (fully opaque)
+
+            dataCounter++; // Increment the received data counter
+            processingTime += performance.now() - processStart; // Add processing time
         };
 
         socket.onclose = function () {
@@ -57,15 +116,15 @@
 
         socket.onerror = function (error) {
             console.error("WebSocket error:", error);
+            errorCount++; // Increment error counter
         };
 
-        // Function to calculate color based on iterations
+        // Function to calculate color based on the number of iterations
         function getColor(iterations) {
             if (iterations === 1000) {
                 // If max iterations, make the pixel black
                 return [0, 0, 0];
             }
-
             // Create colors based on iterations (e.g., gradient effect)
             const r = (iterations * 9) % 256;   // Adjust color calculation as needed
             const g = (iterations * 7) % 256;
@@ -73,12 +132,18 @@
             return [r, g, b];
         }
 
-        // Periodic canvas redraw to update pixels
+        // Function to render the canvas using requestAnimationFrame
         function drawCanvas() {
-            ctx.putImageData(imageData, 0, 0); // Draw image data to canvas
-            requestAnimationFrame(drawCanvas);
+            frameCounter++; // Increment frame counter
+            ctx.putImageData(imageData, 0, 0); // Update canvas pixels
+            requestAnimationFrame(drawCanvas); // Schedule the next frame
         }
+
+        // Start rendering
         drawCanvas();
+
+        // Update metrics at regular intervals
+        setInterval(showMetrics, updateInterval);
     </script>
 </body>
 </html>
