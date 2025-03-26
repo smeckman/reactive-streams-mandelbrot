@@ -1,9 +1,7 @@
 package org.example.producer;
 
 import reactor.core.publisher.Flux;
-
-import java.time.Duration;
-import java.util.Random;
+import reactor.core.scheduler.Schedulers;
 
 public class Mandelbrot {
     // Image dimensions
@@ -22,6 +20,8 @@ public class Mandelbrot {
         return Flux.range(0, HEIGHT) // Rows of the image
                 .flatMap(y -> Flux.range(0, WIDTH) // Columns of the image
                         .map(x -> computeMandelbrot(x, y))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .publishOn(Schedulers.parallel())
                 )
                 // Simulate progressive rendering (remove for faster performance)
                 .delayElements(Duration.ofMillis(new Random().nextInt(50)));
