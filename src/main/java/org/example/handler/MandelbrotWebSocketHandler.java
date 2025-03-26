@@ -15,6 +15,8 @@ public class MandelbrotWebSocketHandler implements WebSocketHandler {
         return session.send(
                 Mandelbrot.generateData()
                           .map(session::textMessage) // Convert data to WebSocket text messages
-        );
+        )
+        .then();
+
     }
 }
